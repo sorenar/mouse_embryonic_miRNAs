@@ -1,18 +1,18 @@
-# miRNAtap is used for finding the targets
+# miRNAtap compiles the predicted targets of the miRNAs for 
 library(miRNAtap)
 library(gplots)
 
-#reading the gene and miRNA clusters with parsing to match the targetfinding method
+#reading the mRNA and miRNA clusters
 miRNAclusters = read.delim("miRNA_clusters_16.txt",header = FALSE, stringsAsFactors = FALSE)
 colnames(miRNAclusters) = c("Symbol","cluster.number")
 
 mRNAclusters = read.delim("mRNA_clusters_30.txt",stringsAsFactors = FALSE,header = FALSE)
 colnames(mRNAclusters) = c("Symbol","cluster.number")
-# the mapping file to map from ensambl ids (transcripts) to Entrez IDs
+# Reading the Ensembl to ID mapping file
 entrezMap = read.delim("gencode.vM10.metadata.EntrezGene",stringsAsFactors = FALSE,header = FALSE)
 colnames(entrezMap) = c("Symbol","Entrez.ID")
 
-# geneMap has the Ensambl ids for the genes in the gene clusters
+# geneMap has the Ensambl ids for the mRNAs
 geneMap = read.delim("StringTie_geneNames_CommonNames.txt",stringsAsFactors = FALSE,header = FALSE)
 colnames(geneMap) = c("Symbol","Ensambl","Name")
 
@@ -20,8 +20,8 @@ colnames(geneMap) = c("Symbol","Ensambl","Name")
 z = merge(mRNAclusters,geneMap, by = "Symbol")
 mRNAclusters = merge(z,entrezMap, by.x = 3,by.y = 1)
 
-
-targets = list() # the interactions found by miRNAtap for the pair of clusters
+# targets is a list with the size of miC# x gC which holds the target list for each miCxgC interaction
+targets = list()
 for (i in 1:length(unique(miRNAclusters$cluster.number))){
   targets[[i]] = list()
   for (l in 1:length(unique(mRNAclusters$cluster.number))){
@@ -29,10 +29,10 @@ for (i in 1:length(unique(miRNAclusters$cluster.number))){
     colnames(targets[[i]][[l]]) = c("Entrez.ID", "miR.Symbol", "rank_product","rank_final","Ensambl","Symbol","cluster.number","Name")
   }
   
-  # going through the miRNAs in each cluster to get the targets for them and bundle them
+  # going through the miRNAs in each cluster to get the predicted targets and compile them
   for (mirna in miRNAclusters[miRNAclusters$cluster.number == i,1]) {
     # miRNAtap uses 5 different resources for target prediction
-    p<-getPredictedTargets(mirna, species = 'mmu',method = 'geom',min_src = 3,synonyms = TRUE)
+    p <- getPredictedTargets(mirna, species = 'mmu',method = 'geom',min_src = 3,synonyms = TRUE)
     if(is.null(p)){ 
       print(paste("jumping for no prediction for:",mirna))
       next
@@ -42,7 +42,7 @@ for (i in 1:length(unique(miRNAclusters$cluster.number))){
     r = cbind(rownames(p),mirna,p[,c("rank_product","rank_final")])
     colnames(r) = c("Entrez.ID", "miR.Symbol","rank_product","rank_final")
     
-    # distributing the targets of each miRNA between different gene clusters
+    # distributing the targets of each miRNA between different mRNA clusters
     for (j in 1:length(unique(mRNAclusters$cluster.number))){
       mRNAcluster = mRNAclusters[mRNAclusters$cluster.number == j,]
       c = merge(r,mRNAcluster,by = "Entrez.ID")
@@ -55,19 +55,17 @@ for (i in 1:length(unique(miRNAclusters$cluster.number))){
   }
   
 }
-
+# counting the unique number of target mRNAs in each interactions
 mRNAt = data.frame(matrix(ncol = length(unique(mRNAclusters$cluster.number)),nrow = length(unique(miRNAclusters$cluster.number))))
 mRNAn = c()
 for (i in 1:length(unique(miRNAclusters$cluster.number))){
   for (j in 1:length(unique(mRNAclusters$cluster.number))){
-    # number of mRNAs in a gene cluster
     mRNAn[j] = length(mRNAclusters[mRNAclusters$cluster.number == j,1]) 
-    # number of unique targets for each combination of gene and miRNA clusters
     mRNAt[i,j] = length(unique(targets[[i]][[j]]$Entrez.ID))
   }
 }
 
-print("calculating the contingency table")
+# calculating the contingency table and the PValues for the Chi-square test
 
 PVals = data.frame(matrix(ncol = length(unique(mRNAclusters$cluster.number)),nrow = length(unique(miRNAclusters$cluster.number))))
 for (i in 1:length(unique(miRNAclusters$cluster.number))){
@@ -81,7 +79,7 @@ for (i in 1:length(unique(miRNAclusters$cluster.number))){
 }
 
 
-################### making enrichment matrix
+# plotting the -log10 of the P-value 
 
 x = apply(-log10(PVals),2,function(x) as.numeric(as.character(x)))
 breaks = c(0,4.2,6,8,10,12)
