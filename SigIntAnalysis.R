@@ -12,9 +12,10 @@ colnames(mRNAclusters) = c("Symbol","cluster.number")
 mRNAtpms <- read.table("gene.tpm.modified.txt", header=T, row.names = "Symbol")
 
 miRNAtpms <- read.csv("CPMs.TMMnormalized.modified.csv", header=T, row.names = "Symbol")
-miRNAtpms <- miRNAtpms + 0.1
-miRNAtpms[,colnames(miRNAtpms) %in% paste0("t",seq(1,48))] = NA
+miRNAtpms <- miRNAtpms + 0.1 # pseudo counts
+miRNAtpms[,colnames(miRNAtpms) %in% paste0("t",seq(1,48))] = NA  # dealing with the missing data labeled as t1 to t48
 
+# averaging the experessions for each cluster at each of the time-stage points
 miRNA.tpms = matrix(0, ncol = 16,nrow = 96)  
 for(i in 1:length(unique(miRNAclusters$cluster.number))){
   for(j in 1:96){
@@ -33,12 +34,10 @@ for(i in 1:30){
 # loading the correlation matrix (corMat), tissue specificity (tissue.specificity) and the cluster means of mRNA and miRNA expressions (mRNA.tpms and miRNA.tpms)
 load("~/Documents/MortazaviLab/Integration/FinalCodes/correlations_16miRC.RData")
 
-#loading the prediction matrics as targets
+#loading the target prediction matrix (PVals and targets)
 load("~/Documents/MortazaviLab/Integration/FinalCodes/predictionTargets.RData")
 
-  
-
-
+# selecting the interaction with significant enrichment
 sigInteractions = arrayInd(which(PVals < 0.05/30/length(unique(miRNAclusters$cluster.number))),c(length(unique(miRNAclusters$cluster.number)),30))
 
 samples <- read.csv("miRNA_samples.all.modified.csv", header=TRUE, stringsAsFactors = F)
@@ -51,6 +50,7 @@ colors = cbind(c("forebrain","#800000"),c("midbrain","#B22222"),c("hindbrain","#
 colnames(colors) = colors[1,]
 colors = colors[,unique(Tissues)]
 
+# iterating through the significant interactions with negative correlation to plot the miRNA-mRNA expression side-by-side                               
 for(i in 1:length(unique(miRNAclusters$cluster.number))){
   for(j in 1:length(unique(mRNAclusters$cluster.number))){
     if(PVals[i,j]<0.05/30/length(unique(miRNAclusters$cluster.number)) && corMat[i,j]<0){
@@ -95,7 +95,6 @@ for(i in 1:length(unique(miRNAclusters$cluster.number))){
 }
 
 ######################### GO analysis
-# build the data tables for GO analysis for metascape
 geneMap = read.delim("StringTie_geneNames_CommonNames.txt",stringsAsFactors = FALSE,header = FALSE)
 colnames(geneMap) = c("Symbol","Ensambl","Name")
 
@@ -106,7 +105,8 @@ for(n in 1:dim(sigInteractions)[1]){
   write.table(unique(geneMap[which(geneMap$Symbol %in% mRNAs),3]),paste0("target",sigInteractions[n,1],"-",sigInteractions[n,2],".csv"),sep = ",",quote = FALSE,row.names = FALSE,col.names = FALSE)
 }
 
-
+# Once the GO analysis was run on the Metascape server the result table was saved with the following format and read for enrichment analysis
+# "miC#-gC#_metascape_result.xlsx"                              
 library(readxl)
 
 # using the output of the Metascape analysis to plot the enriched terms 
